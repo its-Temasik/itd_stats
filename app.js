@@ -1,6 +1,9 @@
 import { ITDClient } from 'itd-sdk-js';
 import express from 'express';
 import fs from 'fs';
+if (process.env.ITD_REFRESH_TOKEN && !fs.existsSync('./.cookies')) {
+  fs.writeFileSync('./.cookies', `refresh_token=${process.env.ITD_REFRESH_TOKEN}`);
+}
 
 const app = express();
 app.use(express.json());
