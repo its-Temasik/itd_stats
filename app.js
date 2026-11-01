@@ -13,7 +13,10 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // Подключение к Supabase
-const sql = postgres(process.env.DATABASE_URL, { prepare: false });
+const sql = postgres(process.env.DATABASE_URL, {
+  prepare: false,
+  family: 4   // принудительно IPv4
+});
 
 // Создаём таблицу при старте (если её нет)
 async function initDb() {
