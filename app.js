@@ -28,7 +28,9 @@ async function initDb() {
   console.log('✅ База данных готова');
 }
 
-const client = new ITDClient();
+const client = new ITDClient({
+  userAgent: process.env.ITD_USER_AGENT
+});
 
 // Добавить username
 app.post('/add', async (req, res) => {
