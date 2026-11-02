@@ -19,7 +19,7 @@
     .add-form {
       display: flex;
       gap: 8px;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
     .add-form input {
       flex: 1;
@@ -39,9 +39,30 @@
     }
     .add-form button:hover { background: #444; }
     .add-form button:disabled { background: #999; cursor: wait; }
+
+    .columns-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      font-size: 14px;
+    }
+    .columns-panel label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
     .status { font-size: 14px; margin-bottom: 16px; min-height: 20px; }
     .status.error { color: #c00; }
     .status.ok { color: #080; }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -70,7 +91,14 @@
     .clan { font-size: 22px; width: 60px; text-align: center; }
     .verified { color: #1d9bf0; margin-left: 4px; }
     .empty { text-align: center; color: #999; padding: 40px; }
-    .loading { text-align: center; color: #666; padding: 40px; }
+    .loading { text-align: center; color: #555; padding: 40px; }
+
+    .hidden { display: none; }
+
+    @media (max-width: 600px) {
+      .columns-panel { font-size: 13px; gap: 8px; }
+      th, td { padding: 8px 10px; font-size: 14px; }
+    }
   </style>
 </head>
 <body>
@@ -82,18 +110,27 @@
     <button type="submit" id="addBtn">Добавить</button>
   </form>
 
+  <div class="columns-panel" id="columnsPanel">
+    <strong>Показывать:</strong>
+    <label><input type="checkbox" data-col="clan" checked> Клан</label>
+    <label><input type="checkbox" data-col="displayName" checked> Имя</label>
+    <label><input type="checkbox" data-col="followers" checked> Подписчики</label>
+    <label><input type="checkbox" data-col="following" checked> Подписки</label>
+    <label><input type="checkbox" data-col="posts" checked> Посты</label>
+  </div>
+
   <div class="status" id="status"></div>
 
   <table>
     <thead>
       <tr>
         <th class="rank">#</th>
-        <th class="clan">Клан</th>
+        <th class="clan" data-col="clan">Клан</th>
         <th>Username</th>
-        <th>Имя</th>
-        <th>Подписчики</th>
-        <th>Подписки</th>
-        <th>Посты</th>
+        <th data-col="displayName">Имя</th>
+        <th data-col="followers">Подписчики</th>
+        <th data-col="following">Подписки</th>
+        <th data-col="posts">Посты</th>
       </tr>
     </thead>
     <tbody id="rows">
@@ -107,6 +144,50 @@
     const form = document.getElementById('addForm');
     const input = document.getElementById('usernameInput');
     const addBtn = document.getElementById('addBtn');
+    const columnsPanel = document.getElementById('columnsPanel');
+
+    const STORAGE_KEY = 'itd-hidden-columns';
+
+    function getHiddenColumns() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveHiddenColumns(hidden) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(hidden));
+    }
+
+    function applyHiddenColumns() {
+      const hidden = getHiddenColumns();
+      // Шапка
+      document.querySelectorAll('th[data-col]').forEach(th => {
+        th.classList.toggle('hidden', hidden.includes(th.dataset.col));
+      });
+      // Ячейки
+      document.querySelectorAll('td[data-col]').forEach(td => {
+        td.classList.toggle('hidden', hidden.includes(td.dataset.col));
+      });
+      // Чекбоксы
+      columnsPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = !hidden.includes(cb.dataset.col);
+      });
+    }
+
+    columnsPanel.addEventListener('change', (e) => {
+      if (e.target.type !== 'checkbox') return;
+      const col = e.target.dataset.col;
+      let hidden = getHiddenColumns();
+      if (e.target.checked) {
+        hidden = hidden.filter(c => c !== col);
+      } else {
+        if (!hidden.includes(col)) hidden.push(col);
+      }
+      saveHiddenColumns(hidden);
+      applyHiddenColumns();
+    });
 
     function setStatus(text, type) {
       statusEl.textContent = text;
@@ -124,14 +205,15 @@
         rowsEl.innerHTML = data.map((u, i) => `
           <tr>
             <td class="rank">${i + 1}</td>
-            <td class="clan">${u.clanEmoji || '—'}</td>
+            <td class="clan" data-col="clan">${u.clanEmoji || '—'}</td>
             <td>${u.username}</td>
-            <td>${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
-            <td>${u.followers}</td>
-            <td>${u.following}</td>
-            <td>${u.posts}</td>
+            <td data-col="displayName">${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
+            <td data-col="followers">${u.followers}</td>
+            <td data-col="following">${u.following}</td>
+            <td data-col="posts">${u.posts}</td>
           </tr>
         `).join('');
+        applyHiddenColumns();
       } catch (e) {
         rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Ошибка загрузки данных</td></tr>';
       }
@@ -170,6 +252,7 @@
     });
 
     loadTop();
+    applyHiddenColumns();
   </script>
 </body>
 </html>
