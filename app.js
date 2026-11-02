@@ -3,7 +3,6 @@ import express from 'express';
 import fs from 'fs';
 import postgres from 'postgres';
 
-// Создаём .cookies из переменной окружения (как раньше)
 if (process.env.ITD_REFRESH_TOKEN && !fs.existsSync('./.cookies')) {
   fs.writeFileSync('./.cookies', `refresh_token=${process.env.ITD_REFRESH_TOKEN}`);
 }
@@ -12,17 +11,27 @@ const app = express();
 app.use(express.json());
 app.use(express.static('.'));
 
-// Подключение к Supabase
 const sql = postgres(process.env.DATABASE_URL, {
   prepare: false,
-  family: 4   // принудительно IPv4
+  family: 4
 });
 
-// Создаём таблицу при старте (если её нет)
 async function initDb() {
   await sql`
     CREATE TABLE IF NOT EXISTS tracked_users (
       username TEXT PRIMARY KEY
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_stats (
+      username TEXT PRIMARY KEY,
+      display_name TEXT,
+      followers INT,
+      following INT,
+      posts INT,
+      verified BOOLEAN,
+      clan_emoji TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
   console.log('✅ База данных готова');
@@ -35,9 +44,7 @@ const client = new ITDClient({
 // Добавить username
 app.post('/add', async (req, res) => {
   const { username } = req.body;
-  if (!username) {
-    return res.status(400).json({ error: 'username пуст' });
-  }
+  if (!username) return res.status(400).json({ error: 'username пуст' });
   try {
     await sql`INSERT INTO tracked_users (username) VALUES (${username}) ON CONFLICT DO NOTHING`;
     const [{ count }] = await sql`SELECT COUNT(*)::int FROM tracked_users`;
@@ -48,7 +55,7 @@ app.post('/add', async (req, res) => {
   }
 });
 
-// Топ-100
+// Топ-100 — только из базы, без API
 app.get('/top100', async (req, res) => {
   const rows = await sql`
     SELECT username, display_name AS "displayName", followers, following, posts, verified, clan_emoji AS "clanEmoji"
@@ -59,14 +66,7 @@ app.get('/top100', async (req, res) => {
   res.json(rows);
 });
 
-// Запуск: сначала база, потом сервер
-initDb().then(() => {
-  app.listen(3000, () => console.log('Сервер запущен: http://localhost:3000'));
-}).catch(e => {
-  console.error('Ошибка инициализации базы:', e);
-  process.exit(1);
-});
-
+// Обновление данных через API
 app.get('/refresh', async (req, res) => {
   const rows = await sql`SELECT username FROM tracked_users`;
   let updated = 0;
@@ -101,4 +101,12 @@ app.get('/refresh', async (req, res) => {
   }
 
   res.json({ ok: true, updated, total: rows.length });
+});
+
+// Запуск: сначала база, потом сервер
+initDb().then(() => {
+  app.listen(3000, () => console.log('Сервер запущен: http://localhost:3000'));
+}).catch(e => {
+  console.error('Ошибка инициализации базы:', e);
+  process.exit(1);
 });
