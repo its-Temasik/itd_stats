@@ -50,40 +50,13 @@ app.post('/add', async (req, res) => {
 
 // Топ-100
 app.get('/top100', async (req, res) => {
-  const results = [];
-  try {
-    const rows = await sql`SELECT username FROM tracked_users`;
-    for (const row of rows) {
-      const username = row.username;
-      try {
-        const user = await client.getUserProfile(username);
-        let clanEmoji = null;
-        try {
-          const clan = await client.getUserClan(username);
-          clanEmoji = typeof clan === 'string' ? clan : (clan?.emoji || null);
-        } catch (e) { /* игнорируем */ }
-
-        results.push({
-          username: user.username,
-          displayName: user.displayName,
-          followers: user.followersCount || 0,
-          following: user.followingCount || 0,
-          posts: user.postsCount || 0,
-          verified: user.verified || false,
-          clanEmoji: clanEmoji
-        });
-      } catch (e) {
-        console.warn(`Не удалось получить ${username}:`, e.message);
-      }
-      await new Promise(r => setTimeout(r, 300));
-    }
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Ошибка базы данных' });
-  }
-
-  results.sort((a, b) => b.followers - a.followers);
-  res.json(results.slice(0, 100));
+  const rows = await sql`
+    SELECT username, display_name AS "displayName", followers, following, posts, verified, clan_emoji AS "clanEmoji"
+    FROM user_stats
+    ORDER BY followers DESC
+    LIMIT 100
+  `;
+  res.json(rows);
 });
 
 // Запуск: сначала база, потом сервер
@@ -92,4 +65,40 @@ initDb().then(() => {
 }).catch(e => {
   console.error('Ошибка инициализации базы:', e);
   process.exit(1);
+});
+
+app.get('/refresh', async (req, res) => {
+  const rows = await sql`SELECT username FROM tracked_users`;
+  let updated = 0;
+
+  for (const row of rows) {
+    const username = row.username;
+    try {
+      const user = await client.getUserProfile(username);
+      let clanEmoji = null;
+      try {
+        const clan = await client.getUserClan(username);
+        clanEmoji = typeof clan === 'string' ? clan : (clan?.emoji || null);
+      } catch (e) { /* игнорируем */ }
+
+      await sql`
+        INSERT INTO user_stats (username, display_name, followers, following, posts, verified, clan_emoji, updated_at)
+        VALUES (${username}, ${user.displayName}, ${user.followersCount || 0}, ${user.followingCount || 0}, ${user.postsCount || 0}, ${user.verified || false}, ${clanEmoji}, NOW())
+        ON CONFLICT (username) DO UPDATE SET
+          display_name = EXCLUDED.display_name,
+          followers = EXCLUDED.followers,
+          following = EXCLUDED.following,
+          posts = EXCLUDED.posts,
+          verified = EXCLUDED.verified,
+          clan_emoji = EXCLUDED.clan_emoji,
+          updated_at = NOW()
+      `;
+      updated++;
+    } catch (e) {
+      console.warn(`Не удалось обновить ${username}:`, e.message);
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  res.json({ ok: true, updated, total: rows.length });
 });
