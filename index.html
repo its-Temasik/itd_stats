@@ -84,14 +84,27 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: #555;
+      user-select: none;
     }
+    th.sortable {
+      cursor: pointer;
+      position: relative;
+    }
+    th.sortable:hover { background: #ececec; }
+    th .arrow {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 11px;
+      color: #999;
+    }
+    th.sorted .arrow { color: #222; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fafafa; }
     .rank { font-weight: 700; color: #888; width: 40px; }
     .clan { font-size: 22px; width: 60px; text-align: center; }
     .verified { color: #1d9bf0; margin-left: 4px; }
     .empty { text-align: center; color: #999; padding: 40px; }
-    .loading { text-align: center; color: #555; padding: 40px; }
+    .loading { text-align: center; color: #666; padding: 40px; }
 
     .hidden { display: none; }
 
@@ -103,7 +116,7 @@
 </head>
 <body>
   <h1>Топ-100 итд</h1>
-  <p class="subtitle">Добавьте username, чтобы отслеживать аккаунт.</p>
+  <p class="subtitle">Добавьте username, чтобы отслеживать аккаунт. Клик по заголовку — сортировка.</p>
 
   <form class="add-form" id="addForm">
     <input type="text" id="usernameInput" placeholder="Введите username" autocomplete="off" required>
@@ -125,12 +138,12 @@
     <thead>
       <tr>
         <th class="rank">#</th>
-        <th class="clan" data-col="clan">Клан</th>
-        <th>Username</th>
-        <th data-col="displayName">Имя</th>
-        <th data-col="followers">Подписчики</th>
-        <th data-col="following">Подписки</th>
-        <th data-col="posts">Посты</th>
+        <th class="clan sortable" data-col="clan" data-sort="clanEmoji">Клан <span class="arrow"></span></th>
+        <th class="sortable" data-sort="username">Username <span class="arrow"></span></th>
+        <th class="sortable" data-col="displayName" data-sort="displayName">Имя <span class="arrow"></span></th>
+        <th class="sortable" data-col="followers" data-sort="followers">Подписчики <span class="arrow"></span></th>
+        <th class="sortable" data-col="following" data-sort="following">Подписки <span class="arrow"></span></th>
+        <th class="sortable" data-col="posts" data-sort="posts">Посты <span class="arrow"></span></th>
       </tr>
     </thead>
     <tbody id="rows">
@@ -147,76 +160,137 @@
     const columnsPanel = document.getElementById('columnsPanel');
 
     const STORAGE_KEY = 'itd-hidden-columns';
+    const SORT_KEY = 'itd-sort';
+
+    let allData = [];
+    let sortField = 'followers';
+    let sortDir = 'desc'; // 'asc' | 'desc'
 
     function getHiddenColumns() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch {
-        return [];
-      }
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
     }
-
     function saveHiddenColumns(hidden) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(hidden));
     }
-
     function applyHiddenColumns() {
       const hidden = getHiddenColumns();
-      // Шапка
       document.querySelectorAll('th[data-col]').forEach(th => {
         th.classList.toggle('hidden', hidden.includes(th.dataset.col));
       });
-      // Ячейки
       document.querySelectorAll('td[data-col]').forEach(td => {
         td.classList.toggle('hidden', hidden.includes(td.dataset.col));
       });
-      // Чекбоксы
       columnsPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.checked = !hidden.includes(cb.dataset.col);
       });
+    }
+
+    // Сохранение сортировки
+    function saveSort() {
+      localStorage.setItem(SORT_KEY, JSON.stringify({ field: sortField, dir: sortDir }));
+    }
+    function loadSort() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SORT_KEY));
+        if (saved && saved.field) {
+          sortField = saved.field;
+          sortDir = saved.dir || 'desc';
+        }
+      } catch {}
+    }
+
+    function sortData(data) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      return [...data].sort((a, b) => {
+        let va = a[sortField];
+        let vb = b[sortField];
+        // null/undefined — в конец
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        // Числа
+        if (typeof va === 'number' && typeof vb === 'number') {
+          return (va - vb) * dir;
+        }
+        // Строки
+        return String(va).localeCompare(String(vb), 'ru') * dir;
+      });
+    }
+
+    function updateArrows() {
+      document.querySelectorAll('th.sortable').forEach(th => {
+        const arrow = th.querySelector('.arrow');
+        const isCurrent = th.dataset.sort === sortField;
+        th.classList.toggle('sorted', isCurrent);
+        if (!arrow) return;
+        if (isCurrent) {
+          arrow.textContent = sortDir === 'asc' ? '▲' : '▼';
+        } else {
+          arrow.textContent = '';
+        }
+      });
+    }
+
+    function render() {
+      if (!allData.length) {
+        rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Пока никого нет. Добавьте первого пользователя.</td></tr>';
+        return;
+      }
+      const data = sortData(allData);
+      rowsEl.innerHTML = data.map((u, i) => `
+        <tr>
+          <td class="rank">${i + 1}</td>
+          <td class="clan" data-col="clan">${u.clanEmoji || '—'}</td>
+          <td>${u.username}</td>
+          <td data-col="displayName">${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
+          <td data-col="followers">${u.followers}</td>
+          <td data-col="following">${u.following}</td>
+          <td data-col="posts">${u.posts}</td>
+        </tr>
+      `).join('');
+      applyHiddenColumns();
+      updateArrows();
+    }
+
+    async function loadTop() {
+      try {
+        const res = await fetch('/top100');
+        allData = await res.json();
+        render();
+      } catch (e) {
+        rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Ошибка загрузки данных</td></tr>';
+      }
     }
 
     columnsPanel.addEventListener('change', (e) => {
       if (e.target.type !== 'checkbox') return;
       const col = e.target.dataset.col;
       let hidden = getHiddenColumns();
-      if (e.target.checked) {
-        hidden = hidden.filter(c => c !== col);
-      } else {
-        if (!hidden.includes(col)) hidden.push(col);
-      }
+      if (e.target.checked) hidden = hidden.filter(c => c !== col);
+      else if (!hidden.includes(col)) hidden.push(col);
       saveHiddenColumns(hidden);
       applyHiddenColumns();
+    });
+
+    // Клик по заголовку — сортировка
+    document.querySelectorAll('th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const field = th.dataset.sort;
+        if (sortField === field) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortField = field;
+          // числа по умолчанию desc, строки — asc
+          sortDir = ['followers', 'following', 'posts'].includes(field) ? 'desc' : 'asc';
+        }
+        saveSort();
+        render();
+      });
     });
 
     function setStatus(text, type) {
       statusEl.textContent = text;
       statusEl.className = 'status' + (type ? ' ' + type : '');
-    }
-
-    async function loadTop() {
-      try {
-        const res = await fetch('/top100');
-        const data = await res.json();
-        if (!data.length) {
-          rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Пока никого нет. Добавьте первого пользователя.</td></tr>';
-          return;
-        }
-        rowsEl.innerHTML = data.map((u, i) => `
-          <tr>
-            <td class="rank">${i + 1}</td>
-            <td class="clan" data-col="clan">${u.clanEmoji || '—'}</td>
-            <td>${u.username}</td>
-            <td data-col="displayName">${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
-            <td data-col="followers">${u.followers}</td>
-            <td data-col="following">${u.following}</td>
-            <td data-col="posts">${u.posts}</td>
-          </tr>
-        `).join('');
-        applyHiddenColumns();
-      } catch (e) {
-        rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Ошибка загрузки данных</td></tr>';
-      }
     }
 
     form.addEventListener('submit', async (e) => {
@@ -234,12 +308,10 @@
           body: JSON.stringify({ username })
         });
         const data = await res.json();
-
         if (!res.ok) {
           setStatus(data.error || 'Ошибка добавления', 'error');
           return;
         }
-
         setStatus(`Добавлено: ${username}.`, 'ok');
         input.value = '';
         await loadTop();
@@ -251,6 +323,7 @@
       }
     });
 
+    loadSort();
     loadTop();
     applyHiddenColumns();
   </script>
