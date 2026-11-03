@@ -230,7 +230,13 @@
         }
       });
     }
-
+    function formatNumber(n) {
+      if (n == null) return '—';
+      if (n < 1000) return String(n);
+      if (n < 10000) return (n / 1000).toFixed(2) + 'к';   // 1234 → 1.23к
+      if (n < 100000) return (n / 1000).toFixed(1) + 'к';  // 12345 → 12.3к
+      return Math.round(n / 1000) + 'к';                   // 123456 → 123к
+}
     function render() {
       if (!allData.length) {
         rowsEl.innerHTML = '<tr><td colspan="7" class="empty">Пока никого нет. Добавьте первого пользователя.</td></tr>';
@@ -243,9 +249,9 @@
           <td class="clan" data-col="clan">${u.clanEmoji || '—'}</td>
           <td>${u.username}</td>
           <td data-col="displayName">${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
-          <td data-col="followers">${u.followers}</td>
-          <td data-col="following">${u.following}</td>
-          <td data-col="posts">${u.posts}</td>
+          <td data-col="followers" title="${u.followers}">${formatNumber(u.followers)}</td>
+          <td data-col="following" title="${u.following}">${formatNumber(u.following)}</td>
+          <td data-col="posts" title="${u.posts}">${formatNumber(u.posts)}</td>
         </tr>
       `).join('');
       applyHiddenColumns();
