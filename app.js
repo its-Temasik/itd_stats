@@ -76,7 +76,8 @@ app.get('/user/:username', async (req, res) => {
   const { username } = req.params;
   try {
     const rows = await sql`
-      SELECT username, display_name AS "displayName", followers, following, posts, verified, clan_emoji AS "clanEmoji", updated_at AS "updatedAt"
+      SELECT username, display_name AS "displayName", followers, following, posts, verified,
+             clan_emoji AS "clanEmoji", updated_at AS "updatedAt"
       FROM user_stats
       WHERE username = ${username}
       LIMIT 1
@@ -84,7 +85,26 @@ app.get('/user/:username', async (req, res) => {
     if (!rows.length) {
       return res.status(404).json({ error: 'Пользователь не найден в базе. Добавьте его и обновите данные.' });
     }
-    res.json(rows[0]);
+
+    // Места в рейтинге
+    const [rankFollowers] = await sql`
+      SELECT COUNT(*)::int + 1 AS rank FROM user_stats WHERE followers > ${rows[0].followers}
+    `;
+    const [rankFollowing] = await sql`
+      SELECT COUNT(*)::int + 1 AS rank FROM user_stats WHERE following > ${rows[0].following}
+    `;
+    const [rankPosts] = await sql`
+      SELECT COUNT(*)::int + 1 AS rank FROM user_stats WHERE posts > ${rows[0].posts}
+    `;
+    const [{ total }] = await sql`SELECT COUNT(*)::int FROM user_stats`;
+
+    res.json({
+      ...rows[0],
+      rankFollowers: rankFollowers.rank,
+      rankFollowing: rankFollowing.rank,
+      rankPosts: rankPosts.rank,
+      totalUsers: total
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Ошибка базы данных' });
