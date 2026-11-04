@@ -45,8 +45,14 @@ const client = new ITDClient({
 app.post('/add', async (req, res) => {
   const { username } = req.body;
   if (!username) return res.status(400).json({ error: 'username пуст' });
+
   try {
-    await sql`INSERT INTO tracked_users (username) VALUES (${username}) ON CONFLICT DO NOTHING`;
+    const existing = await sql`SELECT 1 FROM tracked_users WHERE username = ${username}`;
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Этот username уже отслеживается' });
+    }
+
+    await sql`INSERT INTO tracked_users (username) VALUES (${username})`;
     const [{ count }] = await sql`SELECT COUNT(*)::int FROM tracked_users`;
     res.json({ ok: true, count });
   } catch (e) {
