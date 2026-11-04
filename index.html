@@ -21,6 +21,11 @@
       gap: 8px;
       margin-bottom: 16px;
     }
+    .user-link {
+      color: #1d9bf0;
+      text-decoration: none;
+    }
+    .user-link:hover { text-decoration: underline; }
     .add-form input {
       flex: 1;
       padding: 10px 14px;
@@ -247,7 +252,7 @@
         <tr>
           <td class="rank">${i + 1}</td>
           <td class="clan" data-col="clan">${u.clanEmoji || '—'}</td>
-          <td>${u.username}</td>
+          <td><a href="/user.html?username=${encodeURIComponent(u.username)}" class="user-link">${u.username}</a></td>
           <td data-col="displayName">${u.displayName || '—'}${u.verified ? '<span class="verified">✔</span>' : ''}</td>
           <td data-col="followers" title="${u.followers}">${formatNumber(u.followers)}</td>
           <td data-col="following" title="${u.following}">${formatNumber(u.following)}</td>

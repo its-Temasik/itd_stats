@@ -72,6 +72,25 @@ app.get('/top100', async (req, res) => {
   res.json(rows);
 });
 
+app.get('/user/:username', async (req, res) => {
+  const { username } = req.params;
+  try {
+    const rows = await sql`
+      SELECT username, display_name AS "displayName", followers, following, posts, verified, clan_emoji AS "clanEmoji", updated_at AS "updatedAt"
+      FROM user_stats
+      WHERE username = ${username}
+      LIMIT 1
+    `;
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Пользователь не найден в базе. Добавьте его и обновите данные.' });
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  }
+});
+
 // Обновление данных через API
 app.get('/refresh', async (req, res) => {
   const rows = await sql`SELECT username FROM tracked_users`;
