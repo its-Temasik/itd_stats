@@ -77,11 +77,11 @@ app.get('/user/:username', async (req, res) => {
   try {
     const rows = await sql`
       SELECT username, display_name AS "displayName", followers, following, posts, verified,
-             clan_emoji AS "clanEmoji", updated_at AS "updatedAt"
+             clan_emoji AS "clanEmoji", banner, updated_at AS "updatedAt"
       FROM user_stats
       WHERE username = ${username}
       LIMIT 1
-    `;
+`;
     if (!rows.length) {
       return res.status(404).json({ error: 'Пользователь не найден в базе. Добавьте его и обновите данные.' });
     }
@@ -126,17 +126,19 @@ app.get('/refresh', async (req, res) => {
         clanEmoji = typeof clan === 'string' ? clan : (clan?.emoji || null);
       } catch (e) { /* игнорируем */ }
 
-      await sql`
-        INSERT INTO user_stats (username, display_name, followers, following, posts, verified, clan_emoji, updated_at)
-        VALUES (${username}, ${user.displayName}, ${user.followersCount || 0}, ${user.followingCount || 0}, ${user.postsCount || 0}, ${user.verified || false}, ${clanEmoji}, NOW())
-        ON CONFLICT (username) DO UPDATE SET
-          display_name = EXCLUDED.display_name,
-          followers = EXCLUDED.followers,
-          following = EXCLUDED.following,
-          posts = EXCLUDED.posts,
-          verified = EXCLUDED.verified,
-          clan_emoji = EXCLUDED.clan_emoji,
-          updated_at = NOW()
+      await sql``
+      INSERT INTO user_stats (username, display_name, followers, following, posts, verified, clan_emoji, banner, updated_at)
+   VALUES (${username}, ${user.displayName}, ${user.followersCount || 0}, ${user.followingCount || 0}, ${user.postsCount || 0}, ${user.verified || false}, ${clanEmoji}, ${user.banner || null}, NOW())
+  ON CONFLICT (username) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    followers = EXCLUDED.followers,
+    following = EXCLUDED.following,
+    posts = EXCLUDED.posts,
+    verified = EXCLUDED.verified,
+    clan_emoji = EXCLUDED.clan_emoji,
+    banner = EXCLUDED.banner,
+    updated_at = NOW()
+`;
       `;
       updated++;
     } catch (e) {
