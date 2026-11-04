@@ -321,7 +321,7 @@
         setStatus(`Добавлено: ${username}.`, 'ok');
         input.value = '';
         await loadTop();
-        setStatus(`Готово. Всего отслеживается: ${data.count}`, 'ok');
+        setStatus(`Готово.`, 'ok');
       } catch (e) {
         setStatus('Ошибка сети', 'error');
       } finally {
