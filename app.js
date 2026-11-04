@@ -121,6 +121,7 @@ app.get('/refresh', async (req, res) => {
     const username = row.username;
     try {
       const user = await client.getUserProfile(username);
+      console.log(`user для ${username}:`, JSON.stringify(user));  // ← временно
       let clanEmoji = null;
       try {
         const clan = await client.getUserClan(username);
